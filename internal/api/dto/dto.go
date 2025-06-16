@@ -29,9 +29,15 @@ type GoodsListReq struct {
 }
 
 type GoodReprioritizeReq struct {
-	ID          int
-	ProjectID   int
+	ID          int `json:"-"`
+	ProjectID   int `json:"-"`
 	NewPriority int `json:"newPriority" validate:"required"`
+}
+
+type GoodRemoveResp struct {
+	ID        int  `json:"id"`
+	ProjectID int  `json:"projectId"`
+	Removed   bool `json:"removed"`
 }
 
 type Good struct {
@@ -42,4 +48,25 @@ type Good struct {
 	Priority    int       `json:"priority"`
 	Removed     bool      `json:"removed"`
 	CreatedAt   time.Time `json:"createdAt"`
+}
+
+type Meta struct {
+	Total   int `json:"total"`
+	Removed int `json:"removed"`
+	Limit   int `json:"limit"`
+	Offset  int `json:"offset"`
+}
+
+type GoodsList struct {
+	Meta  Meta   `json:"meta"`
+	Goods []Good `json:"goods"`
+}
+
+type Prioritise struct {
+	ID       int `json:"id"`
+	Priority int `json:"priority"`
+}
+
+type GoodsPrioritize struct {
+	Prioritise []Prioritise `json:"prioritise"`
 }

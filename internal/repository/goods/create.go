@@ -19,7 +19,7 @@ func (r *repo) Create(ctx context.Context, good *model.GoodCreateParams) (*model
 		Suffix("RETURNING *").
 		ToSql()
 	if err != nil {
-		return 0, fmt.Errorf("failed to build insert query: %w", err)
+		return nil, fmt.Errorf("failed to build insert query: %w", err)
 	}
 
 	var res model.Good
@@ -28,6 +28,7 @@ func (r *repo) Create(ctx context.Context, good *model.GoodCreateParams) (*model
 		&res.ProjectID,
 		&res.Info.Name,
 		&res.Info.Description,
+		&res.Priority,
 		&res.Removed,
 		&res.CreatedAt,
 	)

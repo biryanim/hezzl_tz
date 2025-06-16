@@ -9,6 +9,10 @@ type PGConfig interface {
 	DSN() string
 }
 
+type HTTPConfig interface {
+	Address() string
+}
+
 type RedisConfig interface {
 	Address() string
 	ConnectionTimeout() time.Duration

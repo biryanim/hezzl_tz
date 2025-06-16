@@ -32,9 +32,8 @@ type GoodRemove struct {
 }
 
 type GoodListParams struct {
-	ProjectID int
-	Limit     int
-	Offset    int
+	Limit  int
+	Offset int
 }
 
 type GoodReprioritizeParams struct {

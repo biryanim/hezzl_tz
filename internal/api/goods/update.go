@@ -2,31 +2,41 @@ package goods
 
 import (
 	"github.com/biryanim/hezzl_tz/internal/api/dto"
+	"github.com/biryanim/hezzl_tz/internal/converter"
+	apperrors "github.com/biryanim/hezzl_tz/internal/errors"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
 )
 
 func (i *Implementation) Update(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := strconv.Atoi(c.Query("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		c.Error(apperrors.ErrInvalidInput)
 		return
 	}
 
-	projectID, err := strconv.Atoi(c.Param("projectID"))
+	projectID, err := strconv.Atoi(c.Query("projectId"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project id"})
+		c.Error(apperrors.ErrInvalidInput)
 		return
 	}
 
 	var (
 		goodUpdateReq dto.GoodUpdateReq
 	)
-	if err = c.BindJSON(&goodUpdateReq.Info); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err = c.ShouldBindJSON(&goodUpdateReq.Info); err != nil {
+		c.Error(apperrors.ErrInvalidInput)
 		return
 	}
 	goodUpdateReq.ID = id
 	goodUpdateReq.ProjectID = projectID
+
+	resp, err := i.goodsService.Update(c.Request.Context(), converter.FromGoodUpdateReq(&goodUpdateReq))
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, converter.ToGoodsResponse(resp))
 }

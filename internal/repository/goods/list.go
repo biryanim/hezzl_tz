@@ -18,7 +18,7 @@ func (r *repo) List(ctx context.Context, good *model.GoodListParams) (*model.Goo
 			"g.created_at",
 			"total.total", "removed.removed",
 		).
-		From("goods").
+		From("goods g").
 		JoinClause(
 			"CROSS JOIN (SELECT COUNT(*) as total FROM goods) total",
 		).
