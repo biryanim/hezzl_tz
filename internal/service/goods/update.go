@@ -2,8 +2,8 @@ package goods
 
 import (
 	"context"
-	"fmt"
 	"github.com/biryanim/hezzl_tz/internal/model"
+	"log"
 )
 
 func (s *serv) Update(ctx context.Context, goodsUpdatingParams *model.GoodUpdateParams) (*model.Good, error) {
@@ -19,10 +19,8 @@ func (s *serv) Update(ctx context.Context, goodsUpdatingParams *model.GoodUpdate
 		return nil, err
 	}
 
-	key := fmt.Sprintf("good:%d:%d", goodsUpdatingParams.ID, goodsUpdatingParams.ProjectID)
-	err = s.cache.Delete(ctx, key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to delete key: %w", err)
+	if err = s.cache.DeleteByPattern(ctx, "goods:list:*"); err != nil {
+		log.Printf("delete goods cache err: %v", err)
 	}
 	return res, nil
 }

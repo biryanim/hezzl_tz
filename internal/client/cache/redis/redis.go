@@ -25,9 +25,9 @@ func NewClient(pool *redis.Pool, config config.RedisConfig) *client {
 	}
 }
 
-func (c *client) HashSet(ctx context.Context, key string, values interface{}) error {
+func (c *client) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
 	err := c.execute(ctx, func(ctx context.Context, conn redis.Conn) error {
-		_, err := conn.Do("HSET", redis.Args{key}.AddFlat(values)...)
+		_, err := conn.Do("SETEX", key, ttl.Seconds(), value)
 		if err != nil {
 			return err
 		}
@@ -39,40 +39,6 @@ func (c *client) HashSet(ctx context.Context, key string, values interface{}) er
 	}
 
 	return nil
-}
-
-func (c *client) Set(ctx context.Context, key string, value interface{}) error {
-	err := c.execute(ctx, func(ctx context.Context, conn redis.Conn) error {
-		_, err := conn.Do("SET", redis.Args{key}.Add(value)...)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *client) HGetAll(ctx context.Context, key string) ([]interface{}, error) {
-	var values []interface{}
-	err := c.execute(ctx, func(ctx context.Context, conn redis.Conn) error {
-		var errEx error
-		values, errEx = redis.Values(conn.Do("HGETALL", key))
-		if errEx != nil {
-			return errEx
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return values, nil
 }
 
 func (c *client) Get(ctx context.Context, key string) (interface{}, error) {
@@ -93,26 +59,29 @@ func (c *client) Get(ctx context.Context, key string) (interface{}, error) {
 	return value, nil
 }
 
-func (c *client) Expire(ctx context.Context, key string, expiration time.Duration) error {
-	err := c.execute(ctx, func(ctx context.Context, conn redis.Conn) error {
-		_, err := conn.Do("EXPIRE", key, int(expiration.Seconds()))
-		if err != nil {
+func (c *client) DeleteByPattern(ctx context.Context, pattern string) error {
+	return c.execute(ctx, func(ctx context.Context, conn redis.Conn) error {
+		var keys []string
+		var cursor uint64
+		for {
+			reply, err := redis.Values(conn.Do("SCAN", cursor, "MATCH", pattern, "COUNT", 100))
+			if err != nil {
+				return err
+			}
+
+			cursor, _ = redis.Uint64(reply[0], nil)
+			chunk, _ := redis.Strings(reply[1], nil)
+			keys = append(keys, chunk...)
+
+			if cursor == 0 {
+				break
+			}
+		}
+		if len(keys) > 0 {
+			_, err := conn.Do("DEL", redis.Args{}.AddFlat(keys)...)
 			return err
 		}
-
 		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *client) Delete(ctx context.Context, keys ...string) error {
-	return c.execute(ctx, func(ctx context.Context, conn redis.Conn) error {
-		_, err := conn.Do("DEL", redis.Args{}.AddFlat(keys)...)
-		return err
 	})
 }
 

@@ -5,8 +5,8 @@ import (
 )
 
 type GoodInfo struct {
-	Name        string
-	Description string
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
 }
 
 type GoodCreateParams struct {
@@ -53,22 +53,22 @@ type GoodsPrioritize struct {
 }
 
 type Meta struct {
-	Total   int
-	Removed int
-	Limit   int
-	Offset  int
+	Total   int `json:"total"`
+	Removed int `json:"removed"`
+	Limit   int `json:"limit"`
+	Offset  int `json:"offset"`
 }
 
 type GoodsList struct {
-	MetaInfo Meta
-	Goods    []Good
+	MetaInfo Meta   `json:"meta"`
+	Goods    []Good `json:"goods"`
 }
 
 type Good struct {
-	ID        int
-	ProjectID int
-	Info      GoodInfo
-	Priority  int
-	Removed   bool
-	CreatedAt time.Time
+	ID        int       `json:"id"`
+	ProjectID int       `json:"projectId"`
+	Info      GoodInfo  `json:"info"`
+	Priority  int       `json:"priority"`
+	Removed   bool      `json:"removed"`
+	CreatedAt time.Time `json:"createdAt"`
 }

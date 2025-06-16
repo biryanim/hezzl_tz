@@ -2,8 +2,8 @@ package goods
 
 import (
 	"context"
-	"fmt"
 	"github.com/biryanim/hezzl_tz/internal/model"
+	"log"
 )
 
 func (s *serv) Reprioritize(ctx context.Context, goodReprioritizingParams *model.GoodReprioritizeParams) (*model.GoodsPrioritize, error) {
@@ -17,14 +17,8 @@ func (s *serv) Reprioritize(ctx context.Context, goodReprioritizingParams *model
 		return nil, err
 	}
 
-	keys := make([]string, len(goods.Priorities))
-	for _, good := range goods.Priorities {
-		keys = append(keys, fmt.Sprintf("goods:%d:%d", good.ID, goodReprioritizingParams.ProjectID))
-	}
-
-	err = s.cache.Delete(ctx, keys...)
-	if err != nil {
-		return nil, fmt.Errorf("delete goods prioritizing cache: %w", err)
+	if err = s.cache.DeleteByPattern(ctx, "goods:list:*"); err != nil {
+		log.Printf("delete goods cache err: %v", err)
 	}
 
 	return goods, nil
