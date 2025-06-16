@@ -11,13 +11,13 @@ import (
 
 func (i *Implementation) List(c *gin.Context) {
 	limit, err := strconv.Atoi(c.Query("limit"))
-	if err != nil {
+	if err != nil || limit <= 0 {
 		c.Error(apperrors.ErrInvalidInput)
 		return
 	}
 
 	offset, err := strconv.Atoi(c.Query("offset"))
-	if err != nil {
+	if err != nil || offset < 0 {
 		c.Error(apperrors.ErrInvalidInput)
 		return
 	}

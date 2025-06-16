@@ -7,9 +7,10 @@ import (
 )
 
 func (s *serv) Remove(ctx context.Context, goodsRemovingParams *model.GoodDRemoveParams) (*model.GoodRemove, error) {
+	var good *model.Good
 	err := s.txManager.ReadCommited(ctx, func(ctx context.Context) error {
 		var err error
-		err = s.goodsRepository.RemoveGood(ctx, goodsRemovingParams.ID, goodsRemovingParams.ProjectID)
+		good, err = s.goodsRepository.RemoveGood(ctx, goodsRemovingParams.ID, goodsRemovingParams.ProjectID)
 		return err
 	})
 	if err != nil {
@@ -20,9 +21,11 @@ func (s *serv) Remove(ctx context.Context, goodsRemovingParams *model.GoodDRemov
 		log.Printf("delete goods cache err: %v", err)
 	}
 
+	s.publishLogEvent(ctx, good)
+
 	return &model.GoodRemove{
-		ID:        goodsRemovingParams.ID,
-		ProjectID: goodsRemovingParams.ProjectID,
+		ID:        good.ID,
+		ProjectID: good.ProjectID,
 		Removed:   true,
 	}, nil
 }

@@ -26,6 +26,9 @@ func NewApp(ctx context.Context) (*App, error) {
 }
 
 func (a *App) Run() error {
+	loggerCtx, loggerCancel := context.WithCancel(context.Background())
+	defer loggerCancel()
+	go a.serviceProvider.LoggerService(loggerCtx).Run(loggerCtx)
 	err := a.runHTTPServer()
 	if err != nil {
 		log.Fatalf("failed to run http server: %v", err)

@@ -12,3 +12,7 @@ type GoodsService interface {
 	List(ctx context.Context, goodsListingParams *model.GoodListParams) (*model.GoodsList, error)
 	Reprioritize(ctx context.Context, goodReprioritizingParams *model.GoodReprioritizeParams) (*model.GoodsPrioritize, error)
 }
+
+type LoggerService interface {
+	Run(ctx context.Context)
+}

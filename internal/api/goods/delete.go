@@ -11,13 +11,13 @@ import (
 
 func (i *Implementation) Delete(c *gin.Context) {
 	id, err := strconv.Atoi(c.Query("id"))
-	if err != nil {
+	if err != nil || id < 1 {
 		c.Error(apperrors.ErrInvalidInput)
 		return
 	}
 
 	projectID, err := strconv.Atoi(c.Query("projectId"))
-	if err != nil {
+	if err != nil || projectID < 1 {
 		c.Error(apperrors.ErrInvalidInput)
 		return
 	}

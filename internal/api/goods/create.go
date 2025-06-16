@@ -12,7 +12,7 @@ import (
 
 func (i *Implementation) Create(c *gin.Context) {
 	projectID, err := strconv.Atoi(c.Query("projectId"))
-	if err != nil {
+	if err != nil || projectID <= 0 {
 		c.Error(apperrors.ErrInvalidInput)
 		return
 	}

@@ -2,13 +2,15 @@ package goods
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"github.com/Masterminds/squirrel"
+	apperrors "github.com/biryanim/hezzl_tz/internal/errors"
+	"github.com/biryanim/hezzl_tz/internal/model"
+	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 )
 
-func (r *repo) RemoveGood(ctx context.Context, id, projectId int) error {
+func (r *repo) RemoveGood(ctx context.Context, id, projectId int) (*model.Good, error) {
 	query, args, err := r.qb.
 		Update("goods").
 		Set("removed", true).
@@ -16,19 +18,28 @@ func (r *repo) RemoveGood(ctx context.Context, id, projectId int) error {
 			"id":         id,
 			"project_id": projectId,
 			"removed":    false,
-		}).
+		}).Suffix("RETURNING *").
 		ToSql()
 	if err != nil {
-		return fmt.Errorf("failed to build update query: %w", err)
+		return nil, fmt.Errorf("failed to build update query: %w", err)
 	}
 
-	_, err = r.db.DB().ExecContext(ctx, query, args...)
+	var good model.Good
+	err = r.db.DB().QueryRowContext(ctx, query, args...).Scan(
+		&good.ID,
+		&good.ProjectID,
+		&good.Info.Name,
+		&good.Info.Description,
+		&good.Priority,
+		&good.Removed,
+		&good.CreatedAt,
+	)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("the project doesn't exist yet: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, apperrors.ErrGoodsNotFound
 		}
-		return fmt.Errorf("failed to execute update query: %w", err)
+		return nil, fmt.Errorf("failed to update goods: %w", err)
 	}
 
-	return nil
+	return &good, nil
 }

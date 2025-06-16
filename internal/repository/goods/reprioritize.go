@@ -5,11 +5,13 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/Masterminds/squirrel"
+	apperrors "github.com/biryanim/hezzl_tz/internal/errors"
 	"github.com/biryanim/hezzl_tz/internal/model"
+	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 )
 
-func (r *repo) Reprioritize(ctx context.Context, good *model.GoodReprioritizeParams) (*model.GoodsPrioritize, error) {
+func (r *repo) Reprioritize(ctx context.Context, good *model.GoodReprioritizeParams) ([]*model.Good, error) {
 	query, args, err := r.qb.
 		Select("priority").
 		From("goods").
@@ -37,7 +39,7 @@ func (r *repo) Reprioritize(ctx context.Context, good *model.GoodReprioritizePar
 				squirrel.Gt{"priority": curPriority},
 				squirrel.LtOrEq{"priority": good.NewPriority},
 				squirrel.Eq{"removed": false},
-			}).ToSql()
+			}).Suffix("RETURNING *").ToSql()
 	} else if good.NewPriority < curPriority {
 		query, args, err = r.qb.
 			Update("goods").
@@ -48,18 +50,35 @@ func (r *repo) Reprioritize(ctx context.Context, good *model.GoodReprioritizePar
 				squirrel.Lt{"priority": curPriority},
 				squirrel.Eq{"removed": false},
 			}).
-			Suffix("RETURNING id, priority").
+			Suffix("RETURNING *").
 			ToSql()
 	} else {
-		return &model.GoodsPrioritize{
-			Priorities: []model.Prioritise{
-				{
-					ID:       good.ID,
-					Priority: good.NewPriority,
-				},
-			},
-		}, nil
+		query, args, err = r.qb.
+			Select("id", "project_id", "name", "description", "priority", "removed", "created_at").
+			From("goods").
+			Where(squirrel.Eq{"id": good.ID, "project_id": good.ProjectID}).ToSql()
+		if err != nil {
+			return nil, fmt.Errorf("failed to build select query: %w", err)
+		}
+		var g model.Good
+		err = r.db.DB().QueryRowContext(ctx, query, args...).Scan(
+			&g.ID,
+			&g.ProjectID,
+			&g.Info.Name,
+			&g.Info.Description,
+			&g.Priority,
+			&g.Removed,
+			&g.CreatedAt,
+		)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, apperrors.ErrGoodsNotFound
+			}
+			return nil, fmt.Errorf("failed to get good: %w", err)
+		}
+		return []*model.Good{&g}, nil
 	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to build update query: %w", err)
 	}
@@ -73,14 +92,22 @@ func (r *repo) Reprioritize(ctx context.Context, good *model.GoodReprioritizePar
 	}
 	defer rows.Close()
 
-	var updated []model.Prioritise
+	var updated []*model.Good
 
 	for rows.Next() {
-		var priority model.Prioritise
-		if err = rows.Scan(&priority.ID, &priority.Priority); err != nil {
+		var g model.Good
+		if err = rows.Scan(
+			&g.ID,
+			&g.ProjectID,
+			&g.Info.Name,
+			&g.Info.Description,
+			&g.Priority,
+			&g.Removed,
+			&g.CreatedAt,
+		); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
-		updated = append(updated, priority)
+		updated = append(updated, &g)
 	}
 
 	if err = rows.Err(); err != nil {
@@ -103,9 +130,5 @@ func (r *repo) Reprioritize(ctx context.Context, good *model.GoodReprioritizePar
 		return nil, fmt.Errorf("failed to update goods: %w", err)
 	}
 
-	res := &model.GoodsPrioritize{
-		Priorities: updated,
-	}
-
-	return res, nil
+	return updated, nil
 }

@@ -16,14 +16,14 @@ func (i *Implementation) Reprioritize(c *gin.Context) {
 		err                 error
 	)
 	reprioritizeGoodReq.ID, err = strconv.Atoi(c.Query("id"))
-	if err != nil {
+	if err != nil || reprioritizeGoodReq.ID <= 0 {
 		fmt.Println(err)
 		c.Error(apperrors.ErrInvalidInput)
 		return
 	}
 
 	reprioritizeGoodReq.ProjectID, err = strconv.Atoi(c.Query("projectId"))
-	if err != nil {
+	if err != nil || reprioritizeGoodReq.ProjectID <= 0 {
 		fmt.Println(err, "wwwwwww")
 		c.Error(apperrors.ErrInvalidInput)
 		return

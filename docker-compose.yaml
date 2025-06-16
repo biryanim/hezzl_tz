@@ -1,4 +1,23 @@
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - local.env
+    ports:
+      - "8080:8080"
+    depends_on:
+      pg:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    volumes:
+      - ./local.env:/app/local.env
+    command: sh -c "make migration-up && /app/main"
+
   pg:
     image: postgres:17.2-alpine3.21
     env_file:
@@ -7,6 +26,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_users_volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:alpine
@@ -21,6 +45,26 @@ services:
       timeout: 3s
       retries: 5
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:23-alpine
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    env_file:
+      - local.env
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+
+
+  nats:
+    image: nats:2.9-alpine
+    container_name: goods-nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+      - "6222:6222"
+
 volumes:
   postgres_users_volume:
   redis_data:
+  clickhouse_data:

@@ -15,5 +15,7 @@ func (s *serv) Create(ctx context.Context, goodsCreatingParams *model.GoodCreate
 		log.Printf("delete goods cache err: %v", err)
 	}
 
+	s.publishLogEvent(ctx, res)
+
 	return res, nil
 }

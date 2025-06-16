@@ -2,36 +2,51 @@ package app
 
 import (
 	"context"
-	"github.com/biryanim/hezzl_tz/internal/client/cache/redis"
-	goodsRepository "github.com/biryanim/hezzl_tz/internal/repository/goods"
-	goodsService "github.com/biryanim/hezzl_tz/internal/service/goods"
+	"fmt"
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/biryanim/hezzl_tz/internal/api/goods"
+	"github.com/biryanim/hezzl_tz/internal/client/broker"
+	natsCl "github.com/biryanim/hezzl_tz/internal/client/broker/nats"
 	"github.com/biryanim/hezzl_tz/internal/client/cache"
+	"github.com/biryanim/hezzl_tz/internal/client/cache/redis"
 	"github.com/biryanim/hezzl_tz/internal/client/db"
 	"github.com/biryanim/hezzl_tz/internal/client/db/pg"
 	"github.com/biryanim/hezzl_tz/internal/client/db/transaction"
 	"github.com/biryanim/hezzl_tz/internal/config"
 	"github.com/biryanim/hezzl_tz/internal/config/env"
 	"github.com/biryanim/hezzl_tz/internal/repository"
+	goodsRepository "github.com/biryanim/hezzl_tz/internal/repository/goods"
+	logRepository "github.com/biryanim/hezzl_tz/internal/repository/log"
 	"github.com/biryanim/hezzl_tz/internal/service"
+	goodsService "github.com/biryanim/hezzl_tz/internal/service/goods"
+	loggerService "github.com/biryanim/hezzl_tz/internal/service/logger"
 	redigo "github.com/gomodule/redigo/redis"
+	"github.com/nats-io/nats.go"
 	"log"
+	"time"
 )
 
 type serviceProvider struct {
-	pgConfig    config.PGConfig
-	httpConfig  config.HTTPConfig
-	redisConfig config.RedisConfig
+	pgConfig         config.PGConfig
+	httpConfig       config.HTTPConfig
+	redisConfig      config.RedisConfig
+	clickhouseConfig config.ClickhouseConfig
+	natsConfig       config.NatsConfig
 
 	redisPool *redigo.Pool
+	nats      *nats.Conn
+	chConn    clickhouse.Conn
 
-	redisClient cache.RedisClient
-	dbClient    db.Client
-	txManager   db.TxManager
+	redisClient  cache.RedisClient
+	dbClient     db.Client
+	txManager    db.TxManager
+	brokerClient broker.Publisher
 
 	goodsRepository repository.GoodsRepository
+	logRepository   repository.LogRepository
 
-	goodsService service.GoodsService
+	goodsService  service.GoodsService
+	loggerService service.LoggerService
 
 	goodsImpl *goods.Implementation
 }
@@ -66,6 +81,29 @@ func (s *serviceProvider) HTTPConfig() config.HTTPConfig {
 	return s.httpConfig
 }
 
+func (s *serviceProvider) CHConfig() config.ClickhouseConfig {
+	if s.clickhouseConfig == nil {
+		cfg, err := env.NewClickhouseConfig()
+		if err != nil {
+			log.Fatalf("failed to load clickhouse config: %v", err)
+		}
+		s.clickhouseConfig = cfg
+	}
+	return s.clickhouseConfig
+}
+
+func (s *serviceProvider) NatsConfig() config.NatsConfig {
+	if s.natsConfig == nil {
+		cfg, err := env.NewNatsConfig()
+		if err != nil {
+			log.Fatalf("failed to load nats config: %v", err)
+		}
+		s.natsConfig = cfg
+	}
+
+	return s.natsConfig
+}
+
 func (s *serviceProvider) RedisConfig() config.RedisConfig {
 	if s.redisConfig == nil {
 		cfg, err := env.NewRedisConfig()
@@ -91,6 +129,43 @@ func (s *serviceProvider) RedisPool() *redigo.Pool {
 	}
 
 	return s.redisPool
+}
+
+func (s *serviceProvider) CHConn() clickhouse.Conn {
+	if s.chConn == nil {
+		opt, err := clickhouse.ParseDSN(s.CHConfig().DSN())
+		if err != nil {
+			log.Fatalf("failed to parse clickhouse DSN: %v", err)
+		}
+
+		conn, err := clickhouse.Open(opt)
+		if err != nil {
+			log.Fatalf("failed to open clickhouse connection: %v", err)
+		}
+		s.chConn = conn
+	}
+	return s.chConn
+}
+
+func (s *serviceProvider) NatsConn() *nats.Conn {
+	if s.nats == nil {
+		fmt.Println(s.NatsConfig().URL())
+		nc, err := nats.Connect(s.NatsConfig().URL(), nats.Timeout(5*time.Second), nats.PingInterval(20*time.Second), nats.MaxReconnects(3))
+		if err != nil {
+			log.Fatalf("failed to connect to nats server: %v", err)
+		}
+
+		s.nats = nc
+	}
+
+	return s.nats
+}
+
+func (s *serviceProvider) PublisherClient() broker.Publisher {
+	if s.brokerClient == nil {
+		s.brokerClient = natsCl.NewClient(s.NatsConn())
+	}
+	return s.brokerClient
 }
 
 func (s *serviceProvider) RedisClient() cache.RedisClient {
@@ -135,12 +210,28 @@ func (s *serviceProvider) GoodsRepository(ctx context.Context) repository.GoodsR
 	return s.goodsRepository
 }
 
+func (s *serviceProvider) LogRepository(ctx context.Context) repository.LogRepository {
+	if s.logRepository == nil {
+		s.logRepository = logRepository.NewRepository(s.CHConn())
+	}
+
+	return s.logRepository
+}
+
 func (s *serviceProvider) GoodsService(ctx context.Context) service.GoodsService {
 	if s.goodsService == nil {
-		s.goodsService = goodsService.NewService(s.GoodsRepository(ctx), s.RedisClient(), s.TxManager(ctx))
-
+		s.goodsService = goodsService.NewService(s.GoodsRepository(ctx), s.RedisClient(), s.TxManager(ctx), s.PublisherClient())
 	}
+
 	return s.goodsService
+}
+
+func (s *serviceProvider) LoggerService(ctx context.Context) service.LoggerService {
+	if s.loggerService == nil {
+		s.loggerService = loggerService.NewService(s.NatsConn(), s.LogRepository(ctx), s.NatsConfig().Subject())
+	}
+
+	return s.loggerService
 }
 
 func (s *serviceProvider) GoodsImpl(ctx context.Context) *goods.Implementation {

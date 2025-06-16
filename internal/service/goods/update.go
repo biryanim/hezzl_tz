@@ -22,5 +22,8 @@ func (s *serv) Update(ctx context.Context, goodsUpdatingParams *model.GoodUpdate
 	if err = s.cache.DeleteByPattern(ctx, "goods:list:*"); err != nil {
 		log.Printf("delete goods cache err: %v", err)
 	}
+
+	s.publishLogEvent(ctx, res)
+
 	return res, nil
 }
