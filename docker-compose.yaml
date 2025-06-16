@@ -16,7 +16,7 @@ services:
         condition: service_started
     volumes:
       - ./local.env:/app/local.env
-    command: sh -c "make migration-up && /app/main"
+#    command: sh -c "make migration-up && /app/main"
 
   pg:
     image: postgres:17.2-alpine3.21
